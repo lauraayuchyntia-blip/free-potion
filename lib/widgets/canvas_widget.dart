@@ -12,7 +12,9 @@ class CanvasWidget extends StatefulWidget {
 }
 
 class _CanvasWidgetState extends State<CanvasWidget> {
+  // ignore: unused_field
   double _scale = 1.0;
+  // ignore: unused_field
   Offset _offset = Offset.zero;
 
   @override

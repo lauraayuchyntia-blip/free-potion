@@ -17,7 +17,7 @@ class ToolbarWidget extends StatelessWidget {
       child: Row(
         children: [
           // Tools
-          _ToolBtn(icon: Icons.arrow_selector_tool, tool: 'select',
+          _ToolBtn(icon: Icons.open_with, tool: 'select',
             current: provider.activeTool, onTap: () => provider.setActiveTool('select'),
             tooltip: 'Select'),
           _ToolBtn(icon: Icons.text_fields, tool: 'text',

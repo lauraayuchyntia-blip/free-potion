@@ -13,7 +13,7 @@ class EditorProvider extends ChangeNotifier {
   double _zoom = 1.0;
   double _timelineZoom = 1.0;
   String _activeTool = 'select'; // select, text, shape, pen
-  int _selectedEffectIndex = -1;
+  int selectedEffectIndex = -1;
 
   Project? get currentProject => _currentProject;
   String? get selectedLayerId => _selectedLayerId;
