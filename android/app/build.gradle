@@ -4,6 +4,12 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace "com.freepotion.app"
     compileSdk flutter.compileSdkVersion
@@ -18,6 +24,28 @@ android {
         jvmTarget = '1.8'
     }
 
+    signingConfigs {
+        release {
+            if (System.getenv("KEY_STORE_PASSWORD")) {
+                keyAlias System.getenv("KEY_ALIAS") ?: "free-potion"
+                keyPassword System.getenv("KEY_PASSWORD") ?: "freepotion2024"
+                storeFile file(System.getenv("KEY_PATH") ?: "free-potion-release.jks")
+                storePassword System.getenv("KEY_STORE_PASSWORD") ?: "freepotion2024"
+            } else if (keystorePropertiesFile.exists()) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+                storePassword keystoreProperties['storePassword']
+            } else {
+                // fallback to debug signing so CI still works without secrets
+                keyAlias "androiddebugkey"
+                keyPassword "android"
+                storeFile file("${System.getenv('HOME')}/.android/debug.keystore")
+                storePassword "android"
+            }
+        }
+    }
+
     defaultConfig {
         applicationId "com.freepotion.app"
         minSdkVersion 21
@@ -28,9 +56,12 @@ android {
 
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false
+        }
+        debug {
+            signingConfig signingConfigs.debug
         }
     }
 }
