@@ -1,6 +1,6 @@
 plugins {
     id "com.android.application"
-    id "kotlin-android"
+    id "org.jetbrains.kotlin.android"
     id "dev.flutter.flutter-gradle-plugin"
 }
 
@@ -31,13 +31,7 @@ android {
                 keyPassword System.getenv("KEY_PASSWORD") ?: "freepotion2024"
                 storeFile file(System.getenv("KEY_PATH") ?: "free-potion-release.jks")
                 storePassword System.getenv("KEY_STORE_PASSWORD") ?: "freepotion2024"
-            } else if (keystorePropertiesFile.exists()) {
-                keyAlias keystoreProperties['keyAlias']
-                keyPassword keystoreProperties['keyPassword']
-                storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
-                storePassword keystoreProperties['storePassword']
             } else {
-                // fallback to debug signing so CI still works without secrets
                 keyAlias "androiddebugkey"
                 keyPassword "android"
                 storeFile file("${System.getenv('HOME')}/.android/debug.keystore")
@@ -59,9 +53,6 @@ android {
             signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false
-        }
-        debug {
-            signingConfig signingConfigs.debug
         }
     }
 }
