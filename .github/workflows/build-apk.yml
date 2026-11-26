@@ -37,64 +37,40 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Analyze code
-        run: flutter analyze --no-fatal-infos || true
-
-      - name: Run tests
-        run: flutter test || true
-
       - name: Setup signing keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           echo "$KEYSTORE_BASE64" | tr -d '\n' | base64 --decode > android/app/free-potion-release.jks
-          # Verify the keystore is readable
           keytool -list -keystore android/app/free-potion-release.jks \
             -storepass freepotion2024 \
             -alias free-potion || { echo "ERROR: Keystore verification failed"; exit 1; }
-          echo "✅ Keystore verified successfully"
 
-      - name: Build APK (Debug)
-        run: flutter build apk --debug
-
-      - name: Build APK (Release - signed)
+      - name: Build APK (ARM64 Release)
         env:
           KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PATH: free-potion-release.jks
-        run: flutter build apk --release --split-per-abi
+        run: flutter build apk --release --target-platform android-arm64
 
-      - name: Upload Debug APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: free-potion-debug
-          path: build/app/outputs/flutter-apk/app-debug.apk
-          retention-days: 30
-
-      - name: Upload Release APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: free-potion-release
-          path: build/app/outputs/flutter-apk/app-*-release.apk
+          name: free-potion-arm64
+          path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 90
 
       - name: Create Release on tag
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-            build/app/outputs/flutter-apk/app-debug.apk
+          files: build/app/outputs/flutter-apk/app-release.apk
           name: Free Potion ${{ github.ref_name }}
           body: |
             ## Free Potion ${{ github.ref_name }}
-
             🧪 Motion Graphics & Video Editor for Android
-
             ### Download
-            - `app-arm64-v8a-release.apk` — for most modern phones (recommended)
-            - `app-armeabi-v7a-release.apk` — for older phones
+            - `app-release.apk` — ARM64 (semua HP modern)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -297,10 +297,12 @@ class _Playhead extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final x = duration > 0 ? time / duration * totalWidth : 0.0;
+    final rawX = duration > 0 ? time / duration * totalWidth : 0.0;
+    // Clamp agar tidak keluar bounds timeline
+    final x = rawX.clamp(0.0, totalWidth - 2);
 
     return Positioned(
-      left: x - 1,
+      left: x,
       top: 0,
       bottom: 0,
       child: IgnorePointer(

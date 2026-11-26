@@ -23,9 +23,7 @@ class _CanvasWidgetState extends State<CanvasWidget> {
 
   @override
   void dispose() {
-    for (final c in _videoControllers.values) {
-      c.dispose();
-    }
+    for (final c in _videoControllers.values) c.dispose();
     super.dispose();
   }
 
@@ -56,15 +54,24 @@ class _CanvasWidgetState extends State<CanvasWidget> {
       },
       onTapDown: (d) => _handleTap(context, d, provider, project),
       child: Container(
-        color: AppColors.bg,
-        child: Center(
-          child: Transform.translate(
-            offset: _panOffset,
-            child: Transform.scale(
-              scale: provider.zoom,
-              child: _buildCanvas(project, provider),
-            ),
-          ),
+        color: const Color(0xFF0A0812),
+        child: LayoutBuilder(
+          builder: (ctx, constraints) {
+            return Center(
+              child: Transform.translate(
+                offset: _panOffset,
+                child: Transform.scale(
+                  scale: provider.zoom,
+                  child: _buildCanvas(
+                    project,
+                    provider,
+                    constraints.maxWidth,
+                    constraints.maxHeight,
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -85,13 +92,18 @@ class _CanvasWidgetState extends State<CanvasWidget> {
     }
   }
 
-  Widget _buildCanvas(Project project, EditorProvider provider) {
+  Widget _buildCanvas(Project project, EditorProvider provider,
+      double availW, double availH) {
     final canvasW = project.width.toDouble();
     final canvasH = project.height.toDouble();
-    final screenSize = MediaQuery.of(context).size;
-    final scaleX = (screenSize.width * 0.6) / canvasW;
-    final scaleY = (screenSize.height * 0.5) / canvasH;
-    final fitScale = scaleX < scaleY ? scaleX : scaleY;
+
+    // Fit canvas inside available area with padding
+    final scaleX = (availW - 32) / canvasW;
+    final scaleY = (availH - 32) / canvasH;
+    final fitScale = math.min(scaleX, scaleY).clamp(0.05, 2.0);
+
+    final dispW = canvasW * fitScale;
+    final dispH = canvasH * fitScale;
 
     final visibleLayers = project.layers
         .where((l) =>
@@ -103,14 +115,14 @@ class _CanvasWidgetState extends State<CanvasWidget> {
         .toList();
 
     return Container(
-      width: canvasW * fitScale,
-      height: canvasH * fitScale,
+      width: dispW,
+      height: dispH,
       decoration: BoxDecoration(
         color: project.backgroundColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.6),
-            blurRadius: 24,
+            color: Colors.black.withOpacity(0.7),
+            blurRadius: 32,
             offset: const Offset(0, 8),
           ),
         ],
@@ -118,12 +130,10 @@ class _CanvasWidgetState extends State<CanvasWidget> {
       clipBehavior: Clip.hardEdge,
       child: Stack(
         children: [
-          if (project.backgroundColor.alpha < 10)
-            const _CheckerBoard(),
-          if (provider.showGrid)
-            const _GridOverlay(),
-          ...visibleLayers
-              .map((layer) => _buildLayerWidget(layer, fitScale, provider)),
+          if (project.backgroundColor.alpha < 10) const _CheckerBoard(),
+          if (provider.showGrid) const _GridOverlay(),
+          ...visibleLayers.map(
+              (layer) => _buildLayerWidget(layer, fitScale, provider)),
           if (provider.selectedLayer != null)
             _SelectionOverlay(
               layer: provider.selectedLayer!,
@@ -184,8 +194,7 @@ class _CanvasWidgetState extends State<CanvasWidget> {
             ),
           );
         } else {
-          content = _PlaceholderLayer(
-              icon: Icons.image_outlined, label: layer.name);
+          content = _PlaceholderLayer(icon: Icons.image_outlined, label: layer.name);
         }
 
       case LayerType.svg:
@@ -194,8 +203,7 @@ class _CanvasWidgetState extends State<CanvasWidget> {
         } else if (layer.filePath != null) {
           content = SvgPicture.file(File(layer.filePath!), fit: BoxFit.contain);
         } else {
-          content = _PlaceholderLayer(
-              icon: Icons.code_outlined, label: layer.name);
+          content = _PlaceholderLayer(icon: Icons.code_outlined, label: layer.name);
         }
 
       case LayerType.video:
@@ -203,6 +211,7 @@ class _CanvasWidgetState extends State<CanvasWidget> {
           filePath: layer.filePath,
           controllers: _videoControllers,
           layerId: layer.id,
+          isPlaying: provider.isPlaying,
         );
 
       case LayerType.audio:
@@ -337,11 +346,14 @@ class _VideoLayer extends StatefulWidget {
   final String? filePath;
   final Map<String, VideoPlayerController> controllers;
   final String layerId;
+  final bool isPlaying;
 
-  const _VideoLayer(
-      {this.filePath,
-      required this.controllers,
-      required this.layerId});
+  const _VideoLayer({
+    this.filePath,
+    required this.controllers,
+    required this.layerId,
+    required this.isPlaying,
+  });
 
   @override
   State<_VideoLayer> createState() => _VideoLayerState();
@@ -349,23 +361,47 @@ class _VideoLayer extends StatefulWidget {
 
 class _VideoLayerState extends State<_VideoLayer> {
   VideoPlayerController? _ctrl;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.filePath != null) {
-      _ctrl = VideoPlayerController.file(File(widget.filePath!))
-        ..initialize().then((_) {
-          if (mounted) setState(() {});
-        });
-      widget.controllers[widget.layerId] = _ctrl!;
+    _initVideo();
+  }
+
+  Future<void> _initVideo() async {
+    if (widget.filePath == null) return;
+    final file = File(widget.filePath!);
+    if (!await file.exists()) return;
+
+    _ctrl = VideoPlayerController.file(file);
+    widget.controllers[widget.layerId] = _ctrl!;
+    await _ctrl!.initialize();
+    if (mounted) {
+      setState(() => _initialized = true);
+      if (widget.isPlaying) _ctrl!.play();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _VideoLayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_ctrl != null && _initialized) {
+      if (widget.isPlaying && !_ctrl!.value.isPlaying) {
+        _ctrl!.play();
+      } else if (!widget.isPlaying && _ctrl!.value.isPlaying) {
+        _ctrl!.pause();
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_ctrl == null || !_ctrl!.value.isInitialized) {
-      return _PlaceholderLayer(icon: Icons.videocam_outlined, label: 'Video');
+    if (_ctrl == null || !_initialized) {
+      return _PlaceholderLayer(
+        icon: Icons.videocam_outlined,
+        label: widget.filePath != null ? 'Loading...' : 'No video',
+      );
     }
     return FittedBox(
       fit: BoxFit.cover,
@@ -409,8 +445,7 @@ class _PlaceholderLayer extends StatelessWidget {
           Icon(icon, color: AppColors.textMuted, size: 24),
           const SizedBox(height: 4),
           Text(label,
-              style:
-                  const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
         ],
       ),
     );
@@ -462,7 +497,6 @@ class _SelectionOverlay extends StatelessWidget {
 
 class _Handle extends StatelessWidget {
   final double? left, right, top, bottom;
-
   const _Handle({this.left, this.right, this.top, this.bottom});
 
   @override
@@ -539,10 +573,8 @@ class _CheckerPainter extends CustomPainter {
     final paint = Paint();
     for (double y = 0; y < size.height; y += tileSize) {
       for (double x = 0; x < size.width; x += tileSize) {
-        final isEven =
-            ((x / tileSize).toInt() + (y / tileSize).toInt()) % 2 == 0;
-        paint.color =
-            isEven ? const Color(0xFF303030) : const Color(0xFF1A1A1A);
+        final isEven = ((x / tileSize).toInt() + (y / tileSize).toInt()) % 2 == 0;
+        paint.color = isEven ? const Color(0xFF303030) : const Color(0xFF1A1A1A);
         canvas.drawRect(Rect.fromLTWH(x, y, tileSize, tileSize), paint);
       }
     }

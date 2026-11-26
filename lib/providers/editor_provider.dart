@@ -462,6 +462,11 @@ class EditorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void toggleShowGrid() {
+    _showGrid = !_showGrid;
+    notifyListeners();
+  }
+
   void updateProjectBackground(Color color) {
     if (_currentProject != null) {
       _currentProject!.backgroundColor = color;
