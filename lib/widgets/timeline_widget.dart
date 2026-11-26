@@ -19,7 +19,7 @@ class TimelineWidget extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (ctx, constraints) {
-        final totalW = constraints.maxW > 0 ? constraints.maxW : 600;
+        final totalW = constraints.maxW > 0 ? constraints.maxW : 600.0;
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
