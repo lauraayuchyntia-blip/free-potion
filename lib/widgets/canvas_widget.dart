@@ -106,7 +106,7 @@ class _CanvasWidgetState extends State<CanvasWidget> {
       width: canvasW * fitScale,
       height: canvasH * fitScale,
       decoration: BoxDecoration(
-        color: project.backgroundColor ?? Colors.black,
+        color: project.backgroundColor,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.6),
@@ -118,7 +118,7 @@ class _CanvasWidgetState extends State<CanvasWidget> {
       clipBehavior: Clip.hardEdge,
       child: Stack(
         children: [
-          if ((project.backgroundColor?.alpha ?? 255) < 10)
+          if (project.backgroundColor.alpha < 10)
             const _CheckerBoard(),
           if (provider.showGrid)
             const _GridOverlay(),
@@ -283,6 +283,20 @@ class _ShapePainter extends CustomPainter {
         canvas.drawPath(path, paint);
       case 'star':
         _drawStar(canvas, size, paint);
+      case 'gradient':
+        final gradPaint = Paint()
+          ..shader = LinearGradient(
+            colors: [color, Color.lerp(color, Colors.white, 0.5) ?? color],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(0, 0, size.width, size.height),
+            const Radius.circular(8),
+          ),
+          gradPaint,
+        );
       default:
         canvas.drawRRect(
           RRect.fromRectAndRadius(

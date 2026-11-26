@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/project_model.dart';
@@ -24,6 +25,9 @@ class EditorProvider extends ChangeNotifier {
   // Undo/Redo stacks
   final List<List<ProjectLayer>> _undoStack = [];
   final List<List<ProjectLayer>> _redoStack = [];
+
+  // Playback timer
+  Timer? _playTimer;
 
   // Getters
   List<Project> get projects => _projects;
@@ -396,7 +400,41 @@ class EditorProvider extends ChangeNotifier {
 
   void togglePlay() {
     _isPlaying = !_isPlaying;
+    if (_isPlaying) {
+      _startPlayTimer();
+    } else {
+      _stopPlayTimer();
+    }
     notifyListeners();
+  }
+
+  void _startPlayTimer() {
+    _playTimer?.cancel();
+    final fps = _currentProject?.fps ?? 30.0;
+    final interval = Duration(milliseconds: (1000 / fps).round());
+    _playTimer = Timer.periodic(interval, (_) {
+      final duration = _currentProject?.duration ?? 10.0;
+      final step = 1.0 / fps;
+      if (_currentTime + step >= duration) {
+        _currentTime = 0;
+        _isPlaying = false;
+        _playTimer?.cancel();
+      } else {
+        _currentTime += step;
+      }
+      notifyListeners();
+    });
+  }
+
+  void _stopPlayTimer() {
+    _playTimer?.cancel();
+    _playTimer = null;
+  }
+
+  @override
+  void dispose() {
+    _stopPlayTimer();
+    super.dispose();
   }
 
   void setActiveTool(String tool) {
