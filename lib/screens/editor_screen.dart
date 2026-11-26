@@ -8,6 +8,10 @@ import '../widgets/timeline_widget.dart';
 import '../widgets/layers_panel.dart';
 import '../widgets/toolbar_widget.dart';
 import '../widgets/properties_panel.dart';
+import '../widgets/effects_panel.dart';
+import '../widgets/keyframes_panel.dart';
+import '../widgets/add_layer_sheet.dart';
+import '../widgets/export_sheet.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key});
@@ -16,10 +20,40 @@ class EditorScreen extends StatefulWidget {
   State<EditorScreen> createState() => _EditorScreenState();
 }
 
-class _EditorScreenState extends State<EditorScreen> {
-  bool _showLayers = true;
-  bool _showProperties = true;
-  int _bottomTab = 0; // 0=layers, 1=effects, 2=keyframes
+class _EditorScreenState extends State<EditorScreen>
+    with SingleTickerProviderStateMixin {
+
+  bool _showSidePanel = true;
+  late AnimationController _sideAnim;
+  late Animation<double> _sideSlide;
+
+  @override
+  void initState() {
+    super.initState();
+    _sideAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+      value: 1,
+    );
+    _sideSlide = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _sideAnim, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _sideAnim.dispose();
+    super.dispose();
+  }
+
+  void _toggleSidePanel() {
+    setState(() => _showSidePanel = !_showSidePanel);
+    if (_showSidePanel) {
+      _sideAnim.forward();
+    } else {
+      _sideAnim.reverse();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,301 +63,477 @@ class _EditorScreenState extends State<EditorScreen> {
     if (project == null) {
       return const Scaffold(
         backgroundColor: AppColors.bg,
-        body: Center(child: Text('No project open', style: TextStyle(color: AppColors.textSecondary))),
+        body: Center(
+          child: Text('No project open', style: TextStyle(color: AppColors.textSecondary)),
+        ),
       );
     }
 
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: _buildAppBar(context, provider, project.name),
-      body: Column(
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ─── Top Bar ───────────────────────────────────────────
+            _TopBar(
+              projectName: project.name,
+              provider: provider,
+              onTogglePanel: _toggleSidePanel,
+              showPanel: _showSidePanel,
+            ),
+            // ─── Toolbar ───────────────────────────────────────────
+            const ToolbarWidget(),
+            // ─── Main Editor Area ──────────────────────────────────
+            Expanded(
+              child: Row(
+                children: [
+                  // Side panel (Layers / Effects / Keyframes)
+                  AnimatedBuilder(
+                    animation: _sideSlide,
+                    builder: (_, __) => ClipRect(
+                      child: SizedBox(
+                        width: 200 * _sideSlide.value,
+                        child: const _SidePanel(),
+                      ),
+                    ),
+                  ),
+                  // Canvas
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        const CanvasWidget(),
+                        // Panel toggle button on canvas edge
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          child: Center(
+                            child: GestureDetector(
+                              onTap: _toggleSidePanel,
+                              child: Container(
+                                width: 16,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceElevated,
+                                  borderRadius: const BorderRadius.horizontal(
+                                    right: Radius.circular(8),
+                                  ),
+                                  border: const Border(
+                                    top: BorderSide(color: AppColors.border),
+                                    right: BorderSide(color: AppColors.border),
+                                    bottom: BorderSide(color: AppColors.border),
+                                  ),
+                                ),
+                                child: Icon(
+                                  _showSidePanel
+                                      ? Icons.chevron_left
+                                      : Icons.chevron_right,
+                                  color: AppColors.textMuted,
+                                  size: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Properties panel (shows when layer selected)
+                  if (provider.selectedLayer != null)
+                    const SizedBox(
+                      width: 240,
+                      child: PropertiesPanel(),
+                    ),
+                ],
+              ),
+            ),
+            // ─── Timeline ──────────────────────────────────────────
+            const _TimelineArea(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Top Bar (like Alight Motion header) ─────────────────────────────────────
+
+class _TopBar extends StatelessWidget {
+  final String projectName;
+  final EditorProvider provider;
+  final VoidCallback onTogglePanel;
+  final bool showPanel;
+
+  const _TopBar({
+    required this.projectName,
+    required this.provider,
+    required this.onTogglePanel,
+    required this.showPanel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      color: AppColors.surface,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
         children: [
-          // Toolbar
-          const ToolbarWidget(),
-
-          // Main editor area
+          // Back
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios, size: 16),
+            color: AppColors.textSecondary,
+            onPressed: () => Navigator.pop(context),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36),
+          ),
+          // Project name (editable)
           Expanded(
-            child: Row(
-              children: [
-                // Layers panel (left)
-                if (_showLayers)
-                  SizedBox(
-                    width: 200,
-                    child: LayersPanel(
-                      onClose: () => setState(() => _showLayers = false),
+            child: GestureDetector(
+              onTap: () => _renameDialog(context),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      projectName,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-
-                // Canvas (center)
-                Expanded(
-                  child: const CanvasWidget(),
-                ),
-
-                // Properties panel (right)
-                if (_showProperties && provider.selectedLayer != null)
-                  SizedBox(
-                    width: 220,
-                    child: PropertiesPanel(
-                      onClose: () => setState(() => _showProperties = false),
-                    ),
-                  ),
-              ],
+                  const SizedBox(width: 4),
+                  const Icon(Icons.edit, size: 12, color: AppColors.textMuted),
+                ],
+              ),
             ),
           ),
-
-          // Timeline
-          Container(
-            height: 180,
-            decoration: const BoxDecoration(
-              color: AppColors.timeline,
-              border: Border(top: BorderSide(color: AppColors.border)),
+          // Undo
+          IconButton(
+            icon: const Icon(Icons.undo, size: 20),
+            color: provider.canUndo ? AppColors.textSecondary : AppColors.textMuted.withOpacity(0.4),
+            onPressed: provider.canUndo ? provider.undo : null,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36),
+          ),
+          // Redo
+          IconButton(
+            icon: const Icon(Icons.redo, size: 20),
+            color: provider.canRedo ? AppColors.textSecondary : AppColors.textMuted.withOpacity(0.4),
+            onPressed: provider.canRedo ? provider.redo : null,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36),
+          ),
+          // Export button
+          GestureDetector(
+            onTap: () => showModalBottomSheet(
+              context: context,
+              backgroundColor: AppColors.surface,
+              isScrollControlled: true,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              builder: (_) => const ExportSheet(),
             ),
-            child: Column(
-              children: [
-                // Timeline tabs
-                Container(
-                  height: 36,
-                  color: AppColors.surface,
-                  child: Row(
-                    children: [
-                      _TimelineTab(label: 'Layers', index: 0, current: _bottomTab,
-                        onTap: () => setState(() => _bottomTab = 0)),
-                      _TimelineTab(label: 'Effects', index: 1, current: _bottomTab,
-                        onTap: () => setState(() => _bottomTab = 1)),
-                      _TimelineTab(label: 'Keyframes', index: 2, current: _bottomTab,
-                        onTap: () => setState(() => _bottomTab = 2)),
-                      const Spacer(),
-                      // Playback controls
-                      _PlaybackControls(),
-                    ],
-                  ),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.accent, Color(0xFF9F67FF)],
                 ),
-                const Expanded(child: TimelineWidget()),
-              ],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.file_download_outlined, size: 16, color: Colors.white),
+                  SizedBox(width: 6),
+                  Text('Export', style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  )),
+                ],
+              ),
             ),
           ),
         ],
       ),
-      bottomNavigationBar: !_showLayers
-          ? BottomAppBar(
-              color: AppColors.surface,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.layers_outlined),
-                    color: AppColors.textSecondary,
-                    onPressed: () => setState(() => _showLayers = true),
-                    tooltip: 'Show Layers',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.add_circle_outline),
-                    color: AppColors.accent,
-                    onPressed: () => _showAddLayerSheet(context),
-                    tooltip: 'Add Layer',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.tune_outlined),
-                    color: AppColors.textSecondary,
-                    onPressed: () => setState(() => _showProperties = !_showProperties),
-                    tooltip: 'Properties',
-                  ),
-                ],
-              ),
-            )
-          : null,
     );
   }
 
-  AppBar _buildAppBar(BuildContext context, EditorProvider provider, String title) {
-    return AppBar(
-      backgroundColor: AppColors.surface,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios, size: 18),
-        color: AppColors.textSecondary,
-        onPressed: () => Navigator.pop(context),
-      ),
-      title: Text(title, style: const TextStyle(
-        color: AppColors.textPrimary,
-        fontWeight: FontWeight.w600,
-        fontSize: 15,
-      )),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.undo, size: 20),
-          color: AppColors.textSecondary,
-          onPressed: () {},
+  void _renameDialog(BuildContext context) {
+    final ctrl = TextEditingController(text: projectName);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Rename Project', style: TextStyle(color: AppColors.textPrimary)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(hintText: 'Project name'),
         ),
-        IconButton(
-          icon: const Icon(Icons.redo, size: 20),
-          color: AppColors.textSecondary,
-          onPressed: () {},
-        ),
-        const SizedBox(width: 4),
-        Container(
-          margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-          child: ElevatedButton.icon(
-            onPressed: () => _showExportSheet(context),
-            icon: const Icon(Icons.file_download_outlined, size: 16),
-            label: const Text('Export', style: TextStyle(fontSize: 13)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary))),
+          TextButton(
+            onPressed: () {
+              if (provider.currentProject != null) {
+                provider.renameProject(provider.currentProject!.id, ctrl.text.trim());
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Rename', style: TextStyle(color: AppColors.accent)),
           ),
-        ),
-      ],
-    );
-  }
-
-  void _showAddLayerSheet(BuildContext context) {
-    final provider = context.read<EditorProvider>();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Add Layer', style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-            )),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _AddLayerButton(icon: Icons.videocam_outlined, label: 'Video',
-                  onTap: () { provider.addLayer(LayerType.video); Navigator.pop(ctx); }),
-                _AddLayerButton(icon: Icons.image_outlined, label: 'Image',
-                  onTap: () { provider.addLayer(LayerType.image); Navigator.pop(ctx); }),
-                _AddLayerButton(icon: Icons.text_fields, label: 'Text',
-                  onTap: () { provider.addLayer(LayerType.text); Navigator.pop(ctx); }),
-                _AddLayerButton(icon: Icons.crop_square, label: 'Shape',
-                  onTap: () { provider.addLayer(LayerType.shape); Navigator.pop(ctx); }),
-                _AddLayerButton(icon: Icons.music_note_outlined, label: 'Audio',
-                  onTap: () { provider.addLayer(LayerType.audio); Navigator.pop(ctx); }),
-                _AddLayerButton(icon: Icons.auto_awesome, label: 'Effect',
-                  onTap: () { provider.addLayer(LayerType.effect); Navigator.pop(ctx); }),
-              ],
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showExportSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Export', style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
-            )),
-            const SizedBox(height: 16),
-            _ExportOption(icon: Icons.videocam, label: 'MP4 Video', sub: '1080p • H.264'),
-            _ExportOption(icon: Icons.gif, label: 'GIF Animation', sub: '480p • Optimized'),
-            _ExportOption(icon: Icons.image, label: 'PNG Sequence', sub: 'All frames'),
-            _ExportOption(icon: Icons.photo, label: 'Still Image', sub: 'Current frame'),
-            const SizedBox(height: 8),
-          ],
-        ),
+        ],
       ),
     );
   }
 }
 
-class _TimelineTab extends StatelessWidget {
+// ─── Side Panel (Layers / Effects / Keyframes tabs) ───────────────────────────
+
+class _SidePanel extends StatelessWidget {
+  const _SidePanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<EditorProvider>();
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(right: BorderSide(color: AppColors.border)),
+      ),
+      child: Column(
+        children: [
+          // Tab selector
+          Container(
+            height: 36,
+            color: AppColors.surfaceElevated,
+            child: Row(
+              children: [
+                _SideTab(label: 'Layers', index: 0, current: provider.bottomTab,
+                    onTap: () => provider.setBottomTab(0)),
+                _SideTab(label: 'Effects', index: 1, current: provider.bottomTab,
+                    onTap: () => provider.setBottomTab(1)),
+                _SideTab(label: 'KF', index: 2, current: provider.bottomTab,
+                    onTap: () => provider.setBottomTab(2)),
+              ],
+            ),
+          ),
+          // Panel content
+          Expanded(
+            child: IndexedStack(
+              index: provider.bottomTab,
+              children: const [
+                LayersPanel(),
+                EffectsPanel(),
+                KeyframesPanel(),
+              ],
+            ),
+          ),
+          // Add layer button
+          GestureDetector(
+            onTap: () => showModalBottomSheet(
+              context: context,
+              backgroundColor: AppColors.surface,
+              isScrollControlled: true,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              builder: (_) => const AddLayerSheet(),
+            ),
+            child: Container(
+              height: 42,
+              color: AppColors.surfaceElevated,
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add, color: AppColors.accent, size: 18),
+                  SizedBox(width: 6),
+                  Text('Add Layer', style: TextStyle(
+                    color: AppColors.accent,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  )),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SideTab extends StatelessWidget {
   final String label;
   final int index;
   final int current;
   final VoidCallback onTap;
-  const _TimelineTab({required this.label, required this.index, required this.current, required this.onTap});
+
+  const _SideTab({
+    required this.label,
+    required this.index,
+    required this.current,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final active = index == current;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(
-            color: active ? AppColors.accent : Colors.transparent,
-            width: 2,
-          )),
-        ),
-        child: Center(
-          child: Text(label, style: TextStyle(
-            color: active ? AppColors.accent : AppColors.textMuted,
-            fontSize: 12,
-            fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-          )),
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: active ? AppColors.accent : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Center(
+            child: Text(label, style: TextStyle(
+              color: active ? AppColors.accent : AppColors.textMuted,
+              fontSize: 11,
+              fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+            )),
+          ),
         ),
       ),
     );
   }
 }
 
-class _PlaybackControls extends StatelessWidget {
+// ─── Timeline Area ────────────────────────────────────────────────────────────
+
+class _TimelineArea extends StatelessWidget {
+  const _TimelineArea();
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<EditorProvider>();
-    return Row(
-      children: [
-        IconButton(
-          icon: const Icon(Icons.skip_previous, size: 18),
-          color: AppColors.textSecondary,
-          onPressed: () => provider.setCurrentTime(0),
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-        ),
-        IconButton(
-          icon: Icon(provider.isPlaying ? Icons.pause : Icons.play_arrow, size: 20),
-          color: AppColors.accent,
-          onPressed: provider.togglePlay,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-        ),
-        IconButton(
-          icon: const Icon(Icons.skip_next, size: 18),
-          color: AppColors.textSecondary,
-          onPressed: () => provider.setCurrentTime(provider.currentProject?.duration ?? 10),
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          _formatTime(provider.currentTime),
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12,
-            fontFamily: 'monospace',
+
+    return Container(
+      height: 200,
+      decoration: const BoxDecoration(
+        color: AppColors.timeline,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: Column(
+        children: [
+          // Playback controls bar
+          Container(
+            height: 40,
+            color: AppColors.surface,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                // Current time
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceElevated,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    _formatTime(provider.currentTime),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                // Skip to start
+                _PlayBtn(
+                  icon: Icons.skip_previous,
+                  onTap: () => provider.setCurrentTime(0),
+                ),
+                // Play/Pause
+                GestureDetector(
+                  onTap: provider.togglePlay,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      provider.isPlaying ? Icons.pause : Icons.play_arrow,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+                // Skip to end
+                _PlayBtn(
+                  icon: Icons.skip_next,
+                  onTap: () => provider.setCurrentTime(
+                    provider.currentProject?.duration ?? 10,
+                  ),
+                ),
+                const Spacer(),
+                // Duration
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceElevated,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    _formatTime(provider.currentProject?.duration ?? 10),
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Keyframe toggle
+                GestureDetector(
+                  onTap: provider.toggleShowKeyframes,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: provider.showKeyframes
+                          ? AppColors.keyframe.withOpacity(0.2)
+                          : AppColors.surfaceElevated,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: provider.showKeyframes
+                            ? AppColors.keyframe
+                            : AppColors.border,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.diamond_outlined,
+                      size: 14,
+                      color: provider.showKeyframes
+                          ? AppColors.keyframe
+                          : AppColors.textMuted,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-      ],
+          // Timeline
+          const Expanded(child: TimelineWidget()),
+        ],
+      ),
     );
   }
 
@@ -334,58 +544,21 @@ class _PlaybackControls extends StatelessWidget {
   }
 }
 
-class _AddLayerButton extends StatelessWidget {
+class _PlayBtn extends StatelessWidget {
   final IconData icon;
-  final String label;
   final VoidCallback onTap;
-  const _AddLayerButton({required this.icon, required this.label, required this.onTap});
+
+  const _PlayBtn({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 90,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: AppColors.accentGlow, size: 24),
-            const SizedBox(height: 6),
-            Text(label, style: const TextStyle(
-              color: AppColors.textSecondary, fontSize: 12)),
-          ],
-        ),
+        width: 32,
+        height: 32,
+        child: Icon(icon, color: AppColors.textSecondary, size: 18),
       ),
-    );
-  }
-}
-
-class _ExportOption extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String sub;
-  const _ExportOption({required this.icon, required this.label, required this.sub});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: AppColors.accent.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(icon, color: AppColors.accent, size: 20),
-      ),
-      title: Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
-      subtitle: Text(sub, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textMuted),
-      onTap: () {},
     );
   }
 }

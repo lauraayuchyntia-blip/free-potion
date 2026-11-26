@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/project_model.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../providers/editor_provider.dart';
+import '../models/project_model.dart';
 import '../theme/app_theme.dart';
 
 class PropertiesPanel extends StatelessWidget {
-  final VoidCallback? onClose;
-  const PropertiesPanel({super.key, this.onClose});
+  const PropertiesPanel({super.key});
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<EditorProvider>();
     final layer = provider.selectedLayer;
+
+    if (layer == null) return const SizedBox();
 
     return Container(
       decoration: const BoxDecoration(
@@ -19,260 +21,190 @@ class PropertiesPanel extends StatelessWidget {
         border: Border(left: BorderSide(color: AppColors.border)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
           Container(
             height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: const BoxDecoration(
-              color: AppColors.surfaceElevated,
-              border: Border(bottom: BorderSide(color: AppColors.border)),
-            ),
+            color: AppColors.surfaceElevated,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               children: [
-                if (onClose != null)
-                  IconButton(
-                    icon: const Icon(Icons.chevron_right, size: 16),
-                    color: AppColors.textMuted,
-                    onPressed: onClose,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  ),
-                const Text('Properties', style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                )),
+                const Icon(Icons.tune, size: 14, color: AppColors.textSecondary),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text('Properties', style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  )),
+                ),
+                GestureDetector(
+                  onTap: () => provider.selectLayer(null),
+                  child: const Icon(Icons.close, size: 14, color: AppColors.textMuted),
+                ),
               ],
             ),
           ),
+          // Content
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(10),
+              children: [
+                // Layer name
+                _PropGroup('Layer', [
+                  _TextFieldProp(
+                    label: 'Name',
+                    value: layer.name,
+                    onChanged: (v) {
+                      layer.name = v;
+                    },
+                  ),
+                ]),
 
-          if (layer == null)
-            const Expanded(
-              child: Center(
-                child: Text('Select a layer', style: TextStyle(
-                  color: AppColors.textMuted, fontSize: 12)),
-              ),
-            )
-          else
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(10),
-                children: [
-                  // Layer name
-                  _PropSection(title: 'Layer', children: [
-                    _PropRow(label: 'Name', child: Text(layer.name,
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 12))),
-                  ]),
+                // Transform
+                _PropGroup('Transform', [
+                  _SliderProp(
+                    label: 'X',
+                    value: layer.properties.x,
+                    min: -1080,
+                    max: 1080,
+                    onChanged: (v) => provider.updateLayerPosition(layer.id, v, layer.properties.y),
+                    displayValue: layer.properties.x.toStringAsFixed(0),
+                  ),
+                  _SliderProp(
+                    label: 'Y',
+                    value: layer.properties.y,
+                    min: -1920,
+                    max: 1920,
+                    onChanged: (v) => provider.updateLayerPosition(layer.id, layer.properties.x, v),
+                    displayValue: layer.properties.y.toStringAsFixed(0),
+                  ),
+                  _SliderProp(
+                    label: 'Scale X',
+                    value: layer.properties.scaleX,
+                    min: 0.01,
+                    max: 5,
+                    onChanged: (v) => provider.updateLayerScale(layer.id, v, layer.properties.scaleY),
+                    displayValue: '${(layer.properties.scaleX * 100).toStringAsFixed(0)}%',
+                  ),
+                  _SliderProp(
+                    label: 'Scale Y',
+                    value: layer.properties.scaleY,
+                    min: 0.01,
+                    max: 5,
+                    onChanged: (v) => provider.updateLayerScale(layer.id, layer.properties.scaleX, v),
+                    displayValue: '${(layer.properties.scaleY * 100).toStringAsFixed(0)}%',
+                  ),
+                  _SliderProp(
+                    label: 'Rotation',
+                    value: layer.properties.rotation,
+                    min: -360,
+                    max: 360,
+                    onChanged: (v) => provider.updateLayerRotation(layer.id, v),
+                    displayValue: '${layer.properties.rotation.toStringAsFixed(1)}°',
+                  ),
+                  _SliderProp(
+                    label: 'Opacity',
+                    value: layer.properties.opacity * 100,
+                    min: 0,
+                    max: 100,
+                    onChanged: (v) => provider.updateLayerOpacity(layer.id, v / 100),
+                    displayValue: '${(layer.properties.opacity * 100).toStringAsFixed(0)}%',
+                  ),
+                ]),
 
-                  // Transform
-                  _PropSection(title: 'Transform', children: [
-                    _SliderProp(
-                      label: 'X',
-                      value: layer.properties.x,
-                      min: -500, max: 500,
-                      onChanged: (v) => provider.updateLayerPosition(layer.id, v, layer.properties.y),
-                    ),
-                    _SliderProp(
-                      label: 'Y',
-                      value: layer.properties.y,
-                      min: -500, max: 500,
-                      onChanged: (v) => provider.updateLayerPosition(layer.id, layer.properties.x, v),
-                    ),
-                    _SliderProp(
-                      label: 'Scale X',
-                      value: layer.properties.scaleX,
-                      min: 0.1, max: 5,
-                      onChanged: (v) => provider.updateLayerScale(layer.id, v, layer.properties.scaleY),
-                    ),
-                    _SliderProp(
-                      label: 'Scale Y',
-                      value: layer.properties.scaleY,
-                      min: 0.1, max: 5,
-                      onChanged: (v) => provider.updateLayerScale(layer.id, layer.properties.scaleX, v),
-                    ),
-                    _SliderProp(
-                      label: 'Rotation',
-                      value: layer.properties.rotation,
-                      min: -180, max: 180,
-                      onChanged: (v) => provider.updateLayerRotation(layer.id, v),
-                    ),
-                    _SliderProp(
-                      label: 'Opacity',
-                      value: layer.properties.opacity * 100,
-                      min: 0, max: 100,
-                      onChanged: (v) => provider.updateLayerOpacity(layer.id, v / 100),
-                    ),
-                  ]),
+                // Timing
+                _PropGroup('Timing', [
+                  _SliderProp(
+                    label: 'Start',
+                    value: layer.startTime,
+                    min: 0,
+                    max: (provider.currentProject?.duration ?? 10) - 0.1,
+                    onChanged: (v) => provider.updateLayerTiming(layer.id, v, layer.endTime),
+                    displayValue: '${layer.startTime.toStringAsFixed(2)}s',
+                  ),
+                  _SliderProp(
+                    label: 'End',
+                    value: layer.endTime,
+                    min: layer.startTime + 0.1,
+                    max: provider.currentProject?.duration ?? 10,
+                    onChanged: (v) => provider.updateLayerTiming(layer.id, layer.startTime, v),
+                    displayValue: '${layer.endTime.toStringAsFixed(2)}s',
+                  ),
+                ]),
 
-                  // Text properties
-                  if (layer.type.name == 'text')
-                    _PropSection(title: 'Text', children: [
-                      _PropRow(
-                        label: 'Content',
-                        child: GestureDetector(
-                          onTap: () => _editText(context, layer.id, layer.text ?? ''),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceElevated,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(layer.text ?? '',
-                              style: const TextStyle(color: AppColors.textPrimary, fontSize: 11),
-                              maxLines: 2, overflow: TextOverflow.ellipsis),
-                          ),
-                        ),
-                      ),
-                      _SliderProp(
-                        label: 'Font Size',
-                        value: layer.fontSize ?? 24,
-                        min: 8, max: 200,
-                        onChanged: (v) {},
-                      ),
-                    ]),
-
-                  // Effects
-                  _PropSection(title: 'Effects', children: [
-                    if (layer.effects.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text('No effects applied',
-                          style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                      )
-                    else
-                      ...layer.effects.map((e) => _EffectRow(effect: e)),
-                    GestureDetector(
-                      onTap: () => _showEffectsSheet(context, layer.id),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.add, size: 14, color: AppColors.accent),
-                            const SizedBox(width: 6),
-                            const Text('Add Effect', style: TextStyle(
-                              color: AppColors.accent, fontSize: 12)),
-                          ],
-                        ),
-                      ),
+                // Type-specific props
+                if (layer.type == LayerType.text) ...[
+                  _PropGroup('Text', [
+                    _TextFieldProp(
+                      label: 'Content',
+                      value: layer.text ?? '',
+                      onChanged: (v) => provider.updateLayerText(layer.id, v),
                     ),
-                  ]),
-
-                  // Keyframes hint
-                  _PropSection(title: 'Animation', children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppColors.accent.withOpacity(0.2)),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.diamond_outlined, size: 14, color: AppColors.accentGlow),
-                          SizedBox(width: 6),
-                          Expanded(
-                            child: Text('Tap ◆ in the timeline\nto add keyframes',
-                              style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                            ),
-                          ),
-                        ],
-                      ),
+                    _SliderProp(
+                      label: 'Font Size',
+                      value: layer.fontSize ?? 48,
+                      min: 8,
+                      max: 300,
+                      onChanged: (v) => provider.updateLayerFontSize(layer.id, v),
+                      displayValue: '${(layer.fontSize ?? 48).toStringAsFixed(0)}px',
+                    ),
+                    _ColorProp(
+                      label: 'Color',
+                      color: layer.color ?? Colors.white,
+                      onChanged: (c) => provider.updateLayerColor(layer.id, c),
+                    ),
+                    _FontFamilyProp(
+                      value: layer.fontFamily ?? 'Inter',
+                      onChanged: (f) => provider.updateLayerFontFamily(layer.id, f),
                     ),
                   ]),
                 ],
-              ),
+
+                if (layer.type == LayerType.shape) ...[
+                  _PropGroup('Shape', [
+                    _ColorProp(
+                      label: 'Fill Color',
+                      color: layer.color ?? AppColors.accent,
+                      onChanged: (c) => provider.updateLayerColor(layer.id, c),
+                    ),
+                    _ShapeTypeProp(
+                      value: layer.shapeType ?? 'rectangle',
+                      onChanged: (s) => provider.updateLayerShapeType(layer.id, s),
+                    ),
+                  ]),
+                ],
+
+                if (layer.type == LayerType.audio || layer.type == LayerType.video) ...[
+                  _PropGroup('Audio', [
+                    _SliderProp(
+                      label: 'Volume',
+                      value: (layer.volume ?? 1.0) * 100,
+                      min: 0,
+                      max: 100,
+                      onChanged: (v) => provider.updateLayerVolume(layer.id, v / 100),
+                      displayValue: '${((layer.volume ?? 1.0) * 100).toStringAsFixed(0)}%',
+                    ),
+                  ]),
+                ],
+              ],
             ),
-        ],
-      ),
-    );
-  }
-
-  void _editText(BuildContext context, String layerId, String current) {
-    final ctrl = TextEditingController(text: current);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Edit Text', style: TextStyle(color: AppColors.textPrimary)),
-        content: TextField(
-          controller: ctrl,
-          style: const TextStyle(color: AppColors.textPrimary),
-          maxLines: 3,
-          decoration: const InputDecoration(
-            filled: true,
-            fillColor: AppColors.surfaceElevated,
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              context.read<EditorProvider>().updateLayerText(layerId, ctrl.text);
-              Navigator.pop(ctx);
-            },
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEffectsSheet(BuildContext context, String layerId) {
-    final effects = [
-      {'name': 'Glow', 'type': 'glow', 'icon': Icons.flare},
-      {'name': 'Blur', 'type': 'blur', 'icon': Icons.blur_on},
-      {'name': 'Color Correct', 'type': 'colorCorrect', 'icon': Icons.tune},
-      {'name': 'Shadow', 'type': 'shadow', 'icon': Icons.layers},
-      {'name': 'Distort', 'type': 'distort', 'icon': Icons.waves},
-      {'name': 'Chromatic', 'type': 'chromatic', 'icon': Icons.colorize},
-    ];
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('Add Effect', style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-            )),
-          ),
-          ...effects.map((e) => ListTile(
-            leading: Icon(e['icon'] as IconData, color: AppColors.accentGlow, size: 20),
-            title: Text(e['name'] as String,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
-            onTap: () {
-              context.read<EditorProvider>().addEffect(
-                layerId,
-                EffectLayer(
-                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                  name: e['name'] as String,
-                  type: e['type'] as String,
-                ),
-              );
-              Navigator.pop(ctx);
-            },
-          )),
-          const SizedBox(height: 8),
         ],
       ),
     );
   }
 }
 
-class _PropSection extends StatelessWidget {
+// ─── Prop Widgets ─────────────────────────────────────────────────────────────
+
+class _PropGroup extends StatelessWidget {
   final String title;
   final List<Widget> children;
-  const _PropSection({required this.title, required this.children});
+
+  const _PropGroup(this.title, this.children);
 
   @override
   Widget build(BuildContext context) {
@@ -280,40 +212,24 @@ class _PropSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(top: 12, bottom: 6),
+          padding: const EdgeInsets.only(bottom: 6, top: 10),
           child: Text(title.toUpperCase(), style: const TextStyle(
             color: AppColors.textMuted,
             fontSize: 10,
             fontWeight: FontWeight.w600,
-            letterSpacing: 1,
+            letterSpacing: 0.8,
           )),
         ),
-        ...children,
-        const Divider(color: AppColors.border, height: 16),
-      ],
-    );
-  }
-}
-
-class _PropRow extends StatelessWidget {
-  final String label;
-  final Widget child;
-  const _PropRow({required this.label, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 60,
-            child: Text(label, style: const TextStyle(
-              color: AppColors.textMuted, fontSize: 11)),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surfaceElevated,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.border),
           ),
-          Expanded(child: child),
-        ],
-      ),
+          child: Column(children: children),
+        ),
+        const SizedBox(height: 4),
+      ],
     );
   }
 }
@@ -324,48 +240,118 @@ class _SliderProp extends StatelessWidget {
   final double min;
   final double max;
   final ValueChanged<double> onChanged;
+  final String displayValue;
+
   const _SliderProp({
     required this.label,
     required this.value,
     required this.min,
     required this.max,
     required this.onChanged,
+    required this.displayValue,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 60,
+                child: Text(label, style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 11)),
+              ),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 2,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                  ),
+                  child: Slider(
+                    value: value.clamp(min, max),
+                    min: min,
+                    max: max,
+                    onChanged: onChanged,
+                    activeColor: AppColors.accent,
+                    inactiveColor: AppColors.border,
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 44,
+                child: Text(displayValue, style: const TextStyle(
+                  color: AppColors.textMuted, fontSize: 10),
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+          const Divider(color: AppColors.border, height: 1),
+        ],
+      ),
+    );
+  }
+}
+
+class _TextFieldProp extends StatefulWidget {
+  final String label;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  const _TextFieldProp({required this.label, required this.value, required this.onChanged});
+
+  @override
+  State<_TextFieldProp> createState() => _TextFieldPropState();
+}
+
+class _TextFieldPropState extends State<_TextFieldProp> {
+  late TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.value);
+  }
+
+  @override
+  void didUpdateWidget(covariant _TextFieldProp old) {
+    super.didUpdateWidget(old);
+    if (old.value != widget.value && _ctrl.text != widget.value) {
+      _ctrl.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: Row(
         children: [
           SizedBox(
-            width: 55,
-            child: Text(label, style: const TextStyle(
-              color: AppColors.textMuted, fontSize: 11)),
+            width: 60,
+            child: Text(widget.label, style: const TextStyle(
+              color: AppColors.textSecondary, fontSize: 11)),
           ),
           Expanded(
-            child: SliderTheme(
-              data: SliderThemeData(
-                activeTrackColor: AppColors.accent,
-                inactiveTrackColor: AppColors.border,
-                thumbColor: AppColors.accent,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                trackHeight: 2,
-                overlayShape: SliderComponentShape.noOverlay,
+            child: TextField(
+              controller: _ctrl,
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+              decoration: const InputDecoration(
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                border: OutlineInputBorder(),
               ),
-              child: Slider(
-                value: value.clamp(min, max),
-                min: min,
-                max: max,
-                onChanged: onChanged,
-              ),
+              onChanged: widget.onChanged,
             ),
-          ),
-          SizedBox(
-            width: 36,
-            child: Text(value.toStringAsFixed(1),
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
-              textAlign: TextAlign.right),
           ),
         ],
       ),
@@ -373,30 +359,179 @@ class _SliderProp extends StatelessWidget {
   }
 }
 
-class _EffectRow extends StatelessWidget {
-  final EffectLayer effect;
-  const _EffectRow({required this.effect});
+class _ColorProp extends StatelessWidget {
+  final String label;
+  final Color color;
+  final ValueChanged<Color> onChanged;
+
+  const _ColorProp({required this.label, required this.color, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
-        borderRadius: BorderRadius.circular(6),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       child: Row(
         children: [
-          const Icon(Icons.auto_awesome, size: 12, color: AppColors.accentTeal),
-          const SizedBox(width: 6),
-          Expanded(child: Text(effect.name,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 12))),
-          Switch(
-            value: effect.enabled,
-            onChanged: (_) {},
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            activeColor: AppColors.accent,
+          SizedBox(
+            width: 60,
+            child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          ),
+          GestureDetector(
+            onTap: () => _pickColor(context),
+            child: Container(
+              width: 32,
+              height: 24,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: AppColors.border),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '#${color.value.toRadixString(16).toUpperCase().padLeft(8, '0').substring(2)}',
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _pickColor(BuildContext context) {
+    Color tempColor = color;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(label, style: const TextStyle(color: AppColors.textPrimary)),
+        content: SingleChildScrollView(
+          child: ColorPicker(
+            pickerColor: color,
+            onColorChanged: (c) => tempColor = c,
+            enableAlpha: true,
+            labelTypes: const [],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary))),
+          TextButton(
+            onPressed: () {
+              onChanged(tempColor);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Apply', style: TextStyle(color: AppColors.accent)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FontFamilyProp extends StatelessWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  const _FontFamilyProp({required this.value, required this.onChanged});
+
+  static const _fonts = ['Inter', 'Roboto', 'Montserrat', 'Poppins', 'Oswald', 'Raleway', 'Ubuntu', 'Nunito'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Row(
+        children: [
+          const SizedBox(width: 60,
+            child: Text('Font', style: TextStyle(color: AppColors.textSecondary, fontSize: 11))),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _pick(context),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(value, style: const TextStyle(
+                      color: AppColors.textPrimary, fontSize: 12))),
+                    const Icon(Icons.arrow_drop_down, color: AppColors.textMuted, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _pick(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      builder: (ctx) => ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Text('Font Family', style: TextStyle(
+            color: AppColors.textPrimary, fontWeight: FontWeight.w600, fontSize: 16)),
+          const SizedBox(height: 12),
+          ..._fonts.map((f) => ListTile(
+            title: Text(f, style: TextStyle(color: AppColors.textPrimary, fontFamily: f)),
+            trailing: f == value ? const Icon(Icons.check, color: AppColors.accent) : null,
+            onTap: () { onChanged(f); Navigator.pop(ctx); },
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShapeTypeProp extends StatelessWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  const _ShapeTypeProp({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final shapes = [
+      {'id': 'rectangle', 'icon': Icons.crop_square, 'label': 'Rectangle'},
+      {'id': 'circle', 'icon': Icons.circle_outlined, 'label': 'Circle'},
+      {'id': 'triangle', 'icon': Icons.change_history, 'label': 'Triangle'},
+      {'id': 'star', 'icon': Icons.star_outline, 'label': 'Star'},
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Shape Type', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          const SizedBox(height: 8),
+          Row(
+            children: shapes.map((s) {
+              final id = s['id'] as String;
+              final icon = s['icon'] as IconData;
+              final active = id == value;
+              return GestureDetector(
+                onTap: () => onChanged(id),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: active ? AppColors.accent.withOpacity(0.2) : AppColors.surface,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: active ? AppColors.accent : AppColors.border),
+                  ),
+                  child: Icon(icon, size: 18, color: active ? AppColors.accent : AppColors.textSecondary),
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),

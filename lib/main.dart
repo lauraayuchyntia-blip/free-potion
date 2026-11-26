@@ -5,7 +5,7 @@ import 'providers/editor_provider.dart';
 import 'theme/app_theme.dart';
 import 'screens/home_screen.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -15,7 +15,7 @@ void main() async {
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: AppColors.bg,
+    systemNavigationBarColor: Color(0xFF13111F),
     systemNavigationBarIconBrightness: Brightness.light,
   ));
   runApp(const FreePotionApp());
@@ -32,11 +32,9 @@ class FreePotionApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'Free Potion',
-        debugShowCheckedModeBanner: false,
         theme: AppTheme.dark,
-        darkTheme: AppTheme.dark,
-        themeMode: ThemeMode.dark,
         home: const HomeScreen(),
+        debugShowCheckedModeBanner: false,
       ),
     );
   }

@@ -11,62 +11,70 @@ class ToolbarWidget extends StatelessWidget {
     final provider = context.watch<EditorProvider>();
 
     return Container(
-      height: 42,
-      color: AppColors.surface,
+      height: 44,
+      color: AppColors.surfaceElevated,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
-          // Tools
-          _ToolBtn(icon: Icons.open_with, tool: 'select',
-            current: provider.activeTool, onTap: () => provider.setActiveTool('select'),
-            tooltip: 'Select'),
-          _ToolBtn(icon: Icons.text_fields, tool: 'text',
-            current: provider.activeTool, onTap: () => provider.setActiveTool('text'),
-            tooltip: 'Text'),
-          _ToolBtn(icon: Icons.crop_square, tool: 'shape',
-            current: provider.activeTool, onTap: () => provider.setActiveTool('shape'),
-            tooltip: 'Shape'),
-          _ToolBtn(icon: Icons.gesture, tool: 'pen',
-            current: provider.activeTool, onTap: () => provider.setActiveTool('pen'),
-            tooltip: 'Draw'),
+          // Tool buttons
+          _ToolBtn(
+            icon: Icons.open_with,
+            tool: 'select',
+            current: provider.activeTool,
+            tooltip: 'Select',
+            onTap: () => provider.setActiveTool('select'),
+          ),
+          _ToolBtn(
+            icon: Icons.text_fields,
+            tool: 'text',
+            current: provider.activeTool,
+            tooltip: 'Text',
+            onTap: () => provider.setActiveTool('text'),
+          ),
+          _ToolBtn(
+            icon: Icons.crop_square_outlined,
+            tool: 'shape',
+            current: provider.activeTool,
+            tooltip: 'Shape',
+            onTap: () => provider.setActiveTool('shape'),
+          ),
+          _ToolBtn(
+            icon: Icons.gesture,
+            tool: 'pen',
+            current: provider.activeTool,
+            tooltip: 'Draw',
+            onTap: () => provider.setActiveTool('pen'),
+          ),
+          _ToolBtn(
+            icon: Icons.pan_tool_alt_outlined,
+            tool: 'hand',
+            current: provider.activeTool,
+            tooltip: 'Pan',
+            onTap: () => provider.setActiveTool('hand'),
+          ),
 
-          const VerticalDivider(color: AppColors.border, width: 20, indent: 8, endIndent: 8),
+          _Divider(),
 
           // Zoom controls
-          IconButton(
-            icon: const Icon(Icons.zoom_out, size: 16),
-            color: AppColors.textSecondary,
-            onPressed: () => provider.setZoom(provider.zoom - 0.25),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          _IconBtn(
+            icon: Icons.remove,
+            tooltip: 'Zoom out',
+            onTap: () => provider.setZoom(provider.zoom - 0.25),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceElevated,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              '${(provider.zoom * 100).toInt()}%',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11,
-                fontVariations: [FontVariation('wght', 500)]),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.zoom_in, size: 16),
-            color: AppColors.textSecondary,
-            onPressed: () => provider.setZoom(provider.zoom + 0.25),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          _ZoomLabel(zoom: provider.zoom, onTap: () => provider.setZoom(1.0)),
+          _IconBtn(
+            icon: Icons.add,
+            tooltip: 'Zoom in',
+            onTap: () => provider.setZoom(provider.zoom + 0.25),
           ),
 
-          const VerticalDivider(color: AppColors.border, width: 20, indent: 8, endIndent: 8),
+          _Divider(),
 
-          // Aspect ratio indicator
+          // Canvas info
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: AppColors.surfaceElevated,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(4),
               border: Border.all(color: AppColors.border),
             ),
@@ -78,17 +86,17 @@ class ToolbarWidget extends StatelessWidget {
 
           const Spacer(),
 
-          // Effects shortcut
-          _QuickBtn(
-            icon: Icons.auto_awesome,
-            label: 'Effects',
-            onTap: () {},
-          ),
-          const SizedBox(width: 6),
-          _QuickBtn(
-            icon: Icons.tune,
-            label: 'Color',
-            onTap: () {},
+          // FPS display
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '${(provider.currentProject?.fps ?? 30).toInt()} fps',
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 10),
+            ),
           ),
         ],
       ),
@@ -119,50 +127,97 @@ class _ToolBtn extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 32,
-          height: 32,
+          width: 34,
+          height: 34,
           margin: const EdgeInsets.symmetric(horizontal: 1),
           decoration: BoxDecoration(
             color: active ? AppColors.accent.withOpacity(0.2) : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
-            border: active ? Border.all(color: AppColors.accent.withOpacity(0.5)) : null,
+            border: Border.all(
+              color: active ? AppColors.accent.withOpacity(0.6) : Colors.transparent,
+            ),
           ),
-          child: Icon(icon, size: 16,
-            color: active ? AppColors.accent : AppColors.textSecondary),
+          child: Icon(
+            icon,
+            size: 17,
+            color: active ? AppColors.accent : AppColors.textSecondary,
+          ),
         ),
       ),
     );
   }
 }
 
-class _QuickBtn extends StatelessWidget {
+class _IconBtn extends StatelessWidget {
   final IconData icon;
-  final String label;
+  final VoidCallback onTap;
+  final String tooltip;
+
+  const _IconBtn({required this.icon, required this.onTap, required this.tooltip});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Icon(icon, size: 14, color: AppColors.textSecondary),
+        ),
+      ),
+    );
+  }
+}
+
+class _ZoomLabel extends StatelessWidget {
+  final double zoom;
   final VoidCallback onTap;
 
-  const _QuickBtn({required this.icon, required this.label, required this.onTap});
+  const _ZoomLabel({required this.zoom, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        width: 46,
+        height: 26,
+        margin: const EdgeInsets.symmetric(horizontal: 2),
         decoration: BoxDecoration(
-          color: AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(6),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(color: AppColors.border),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: AppColors.textSecondary),
-            const SizedBox(width: 4),
-            Text(label, style: const TextStyle(
-              color: AppColors.textSecondary, fontSize: 11)),
-          ],
+        child: Center(
+          child: Text(
+            '${(zoom * 100).toInt()}%',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 20,
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      color: AppColors.border,
     );
   }
 }

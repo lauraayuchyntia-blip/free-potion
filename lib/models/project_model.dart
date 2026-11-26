@@ -1,43 +1,52 @@
 import 'package:flutter/material.dart';
 
-enum LayerType { video, image, text, shape, audio, effect }
+enum LayerType { video, image, text, shape, audio, effect, svg }
 
-enum BlendMode2 { normal, multiply, screen, overlay, add, darken, lighten }
+enum ShapeType { rectangle, circle, triangle, star, polygon }
+
+enum BlendMode2 { normal, multiply, screen, overlay, darken, lighten, colorDodge, colorBurn, hardLight, softLight, difference, exclusion }
+
+enum EasingType { linear, easeIn, easeOut, easeInOut, spring, bounce }
 
 class Keyframe {
-  final double time; // in seconds
-  final dynamic value;
-  final String easing; // linear, ease, easeIn, easeOut, bounce
+  double time;
+  dynamic value;
+  EasingType easing;
+  String property;
 
-  Keyframe({required this.time, required this.value, this.easing = 'linear'});
-
-  Map<String, dynamic> toJson() => {
-    'time': time,
-    'value': value,
-    'easing': easing,
-  };
+  Keyframe({
+    required this.time,
+    required this.value,
+    this.easing = EasingType.linear,
+    this.property = 'position',
+  });
 }
 
-class LayerProperty {
+class LayerProperties {
   double x;
   double y;
   double scaleX;
   double scaleY;
   double rotation;
   double opacity;
+  double anchorX;
+  double anchorY;
+
   List<Keyframe> xKeyframes;
   List<Keyframe> yKeyframes;
   List<Keyframe> opacityKeyframes;
   List<Keyframe> scaleKeyframes;
   List<Keyframe> rotationKeyframes;
 
-  LayerProperty({
+  LayerProperties({
     this.x = 0,
     this.y = 0,
-    this.scaleX = 1,
-    this.scaleY = 1,
+    this.scaleX = 1.0,
+    this.scaleY = 1.0,
     this.rotation = 0,
-    this.opacity = 1,
+    this.opacity = 1.0,
+    this.anchorX = 0,
+    this.anchorY = 0,
     List<Keyframe>? xKeyframes,
     List<Keyframe>? yKeyframes,
     List<Keyframe>? opacityKeyframes,
@@ -52,8 +61,8 @@ class LayerProperty {
 
 class EffectLayer {
   final String id;
-  final String name;
-  final String type; // blur, glow, colorCorrect, distort, shadow
+  String name;
+  String type; // blur, glow, shadow, colorCorrection, etc.
   bool enabled;
   Map<String, dynamic> params;
 
@@ -70,49 +79,60 @@ class ProjectLayer {
   final String id;
   String name;
   LayerType type;
-  bool visible;
-  bool locked;
-  bool solo;
   double startTime;
   double endTime;
   double duration;
-  String? mediaPath;
+  bool visible;
+  bool locked;
+  String? filePath;
   String? text;
   Color? color;
   String? fontFamily;
   double? fontSize;
-  Color? fillColor;
-  Color? strokeColor;
-  double? strokeWidth;
   String? shapeType;
-  LayerProperty properties;
-  List<EffectLayer> effects;
+  double? strokeWidth;
+  Color? strokeColor;
+  bool? isFilled;
   BlendMode2 blendMode;
+  LayerProperties properties;
+  List<EffectLayer> effects;
+  List<Keyframe> keyframes;
+  double? volume; // for audio/video
+  bool? loop;    // for audio/video
+  String? svgContent;
+  double? width;
+  double? height;
 
   ProjectLayer({
     required this.id,
     required this.name,
     required this.type,
+    required this.startTime,
+    required this.endTime,
+    required this.duration,
     this.visible = true,
     this.locked = false,
-    this.solo = false,
-    this.startTime = 0,
-    this.endTime = 5,
-    this.duration = 5,
-    this.mediaPath,
+    this.filePath,
     this.text,
     this.color,
-    this.fontFamily = 'Inter',
-    this.fontSize = 24,
-    this.fillColor,
+    this.fontFamily,
+    this.fontSize,
+    this.shapeType,
+    this.strokeWidth,
     this.strokeColor,
-    this.strokeWidth = 0,
-    this.shapeType = 'rectangle',
-    LayerProperty? properties,
-    List<EffectLayer>? effects,
+    this.isFilled = true,
     this.blendMode = BlendMode2.normal,
-  })  : properties = properties ?? LayerProperty(),
-        effects = effects ?? [];
+    this.volume = 1.0,
+    this.loop = false,
+    this.svgContent,
+    this.width,
+    this.height,
+    LayerProperties? properties,
+    List<EffectLayer>? effects,
+    List<Keyframe>? keyframes,
+  })  : properties = properties ?? LayerProperties(),
+        effects = effects ?? [],
+        keyframes = keyframes ?? [];
 }
 
 class Project {
@@ -120,40 +140,25 @@ class Project {
   String name;
   int width;
   int height;
-  double frameRate;
   double duration;
+  double fps;
+  Color backgroundColor;
   List<ProjectLayer> layers;
   DateTime createdAt;
   DateTime updatedAt;
-  String? thumbnailPath;
-  Color backgroundColor;
 
   Project({
     required this.id,
     required this.name,
     this.width = 1080,
     this.height = 1920,
-    this.frameRate = 30,
-    this.duration = 10,
+    this.duration = 10.0,
+    this.fps = 30.0,
+    this.backgroundColor = Colors.black,
     List<ProjectLayer>? layers,
     DateTime? createdAt,
     DateTime? updatedAt,
-    this.thumbnailPath,
-    Color? backgroundColor,
   })  : layers = layers ?? [],
         createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now(),
-        backgroundColor = backgroundColor ?? const Color(0xFF000000);
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'width': width,
-    'height': height,
-    'frameRate': frameRate,
-    'duration': duration,
-    'createdAt': createdAt.toIso8601String(),
-    'updatedAt': updatedAt.toIso8601String(),
-    'backgroundColor': backgroundColor.value,
-  };
+        updatedAt = updatedAt ?? DateTime.now();
 }
